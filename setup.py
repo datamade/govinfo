@@ -6,7 +6,7 @@ setup(
     author="Forest Gregg",
     author_email='fgregg@datamade.us',
     license="MIT",
-    #url="http://github.com/datamade/census",
+    url="https://github.com/datamade/govinfo"
     packages=['govinfo'],
     description="A wrapper for the GPO's GovInfo API",
     platforms=["any"],
