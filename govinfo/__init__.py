@@ -4,18 +4,9 @@ import pytz
 class GovInfo(scrapelib.Scraper):
     BASE_URL = 'https://api.govinfo.gov'
 
-    def __init__(self, api_key='DEMO_KEY', **kwargs):
-        super().__init__(**kwargs)
-        self.api_key = api_key
-
-    def get(self, *args, **kwargs):
-        params = kwargs.pop('params', {})
-
-        params['API_KEY'] = self.api_key
-
-        kwargs['params'] = params
-
-        return super().get(*args, **kwargs)
+    def __init__(self, *args, api_key='DEMO_KEY', **kwargs):
+        super().__init__(*args, **kwargs)
+        self.headers['X-Api-Key'] = api_key
 
     def collections(self):
         endpoint = '/collections'
@@ -32,8 +23,7 @@ class GovInfo(scrapelib.Scraper):
 
         for page in self._pages(endpoint):
             for package in page['packages']:
-                response = self.get(package['packageLink'])
-                print(response.url)
+                response = self.get(package['packageLink')
                 yield response.json()
 
     def _pages(self, endpoint):
@@ -48,7 +38,7 @@ class GovInfo(scrapelib.Scraper):
 
         next_page = data['nextPage']
         while next_page:
-            response = self.get(endpoint)
+            response = self.get(next_page)
             data = response.json()
 
             yield data
