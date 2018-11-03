@@ -29,57 +29,29 @@ class GovInfo(scrapelib.Scraper):
         return path
 
 
-    def _bisect(self, endpoint, start_time, end_time):
-        '''
-        The govinfo API will only allow you to access 10000 elements from
-        an endpoint. This method takes the requested start and end
-        range and breaks the range into multiple smaller ranges that
-        each have less than 10000 elements. By visiting all the
-        smaller ranges you will be able to get all the data.
-        '''
-
-        if end_time is None:
-            end_time = datetime.datetime.now(pytz.utc)
-
-        url = self.BASE_URL + self._format_path(endpoint,
-                                                start_time,
-                                                end_time)
-        first_page_params = {'offset':  0,
-                             'pageSize': 100}
-
-        response = self.get(url, params=first_page_params)
-
-        count = response.json()['count']
-
-        if count < 10000:
-            if count: # skip ranges that don't have any elements
-                yield url
-        else:
-            duration = end_time - start_time
-            midpoint = start_time + (duration / 2)
-            yield from self._bisect(endpoint, start_time, midpoint)
-            yield from self._bisect(endpoint, midpoint, end_time)
-
-
-    def congressional_hearings(self, start_time=None, end_time=None):
-        endpoint = '/collections/CHRG/{start_time}/{end_time}/'
+    def congressional_hearings(self, start_time, end_time=None):
+        endpoint = '/collections/CHRG/{start_time}/{end_time}'
 
         if start_time is None:
             if end_time is not None:
                 raise ValueError('if end_time is set so must start_time')
 
-        sections = self._bisect(endpoint, start_time, end_time)
+        if end_time is None:
+            end_time = datetime.datetime.now(pytz.utc)
 
-        for url in sections:
-            for page in self._pages(url):
-                for package in page['packages']:
-                    response = self.get(package['packageLink'])
-                    yield response.json()
+        url = self.BASE_URL + self._format_path(endpoint, start_time, end_time)
+
+        for page in self._pages(url):
+            for package in page['packages']:
+                response = self.get(package['packageLink'])
+                yield response.json()
 
 
     def _pages(self, url):
+        page_size = 100
+
         first_page_params = {'offset':  0,
-                             'pageSize': 100}
+                             'pageSize': page_size}
 
         response = self.get(url,
                             params=first_page_params)
@@ -87,12 +59,16 @@ class GovInfo(scrapelib.Scraper):
 
         yield data
 
-        next_page = data['nextPage']
-        while next_page:
-            response = self.get(next_page)
+        while len(data['packages']) == page_size:
+            earliest_timestamp = data['packages'][-1]['lastModified']
+
+            # the API results are sorted in descending order by timestamp
+            # so we can paginate through results by making the end_time
+            # filter earlier and earlier
+            url = url.lsplit('/', 1)[0] + '/' + earliest_timestamp
+            response = self.get(next_page,
+                                params=first_page_params)
+
             data = response.json()
 
             yield data
-
-            next_page = data['nextPage']
-        
