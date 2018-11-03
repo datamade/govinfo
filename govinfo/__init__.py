@@ -9,6 +9,7 @@ class GovInfo(scrapelib.Scraper):
         super().__init__(*args, **kwargs)
         self.headers['X-Api-Key'] = api_key
 
+
     def collections(self):
         endpoint = '/collections'
         response = self.get(self.BASE_URL + endpoint)
@@ -41,6 +42,7 @@ class GovInfo(scrapelib.Scraper):
 
         url = self.BASE_URL + self._format_path(endpoint, start_time, end_time)
 
+        # we may need to check for duplicates here
         for page in self._pages(url):
             for package in page['packages']:
                 response = self.get(package['packageLink'])
@@ -59,16 +61,17 @@ class GovInfo(scrapelib.Scraper):
 
         yield data
 
-        while len(data['packages']) == page_size:
-            earliest_timestamp = data['packages'][-1]['lastModified']
+        url_template = url.lsplit('/', 1)[0] + '/{end_time}'
 
+        while len(data['packages']) == page_size:
             # the API results are sorted in descending order by timestamp
             # so we can paginate through results by making the end_time
             # filter earlier and earlier
-            url = url.lsplit('/', 1)[0] + '/' + earliest_timestamp
-            response = self.get(next_page,
-                                params=first_page_params)
+            earliest_timestamp = data['packages'][-1]['lastModified']
+            url =  url_template.format(end_time=earliest_timestamp)
 
+            response = self.get(url,
+                                params=first_page_params)
             data = response.json()
 
             yield data
