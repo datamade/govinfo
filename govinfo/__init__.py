@@ -1,6 +1,8 @@
+import datetime
+
 import scrapelib
 import pytz
-import datetime
+import cachetools
 
 class GovInfo(scrapelib.Scraper):
     BASE_URL = 'https://api.govinfo.gov'
@@ -16,7 +18,7 @@ class GovInfo(scrapelib.Scraper):
         return response.json()
 
 
-    def _format_time(self, dt)
+    def _format_time(self, dt):
 
         utc_time = dt.astimezone(pytz.utc)
         time_str = dt.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -36,9 +38,20 @@ class GovInfo(scrapelib.Scraper):
         partial = '/collections/CHRG/{start_time}'.format(start_time=start_time_str)
         url_template = self.BASE_URL + partial + '/{end_time}'
 
-        # we may need to check for duplicates here
+        seen = cachetools.LRUCache(30)
         for page in self._pages(url_template, end_time_str):
             for package in page['packages']:
+                package_id = package['packageId']
+
+                if package_id in seen:
+                    continue
+                else:
+                    # the LRUCache is like a dict, but all we care
+                    # about is whether we've seen this package
+                    # recently, so we just store None as the value
+                    # associated with the package_id key
+                    seen[package_id] = None
+
                 response = self.get(package['packageLink'])
                 yield response.json()
 
@@ -46,26 +59,25 @@ class GovInfo(scrapelib.Scraper):
     def _pages(self, url_template, end_time_str):
         page_size = 100
 
-        first_page_params = {'offset':  0,
-                             'pageSize': page_size}
+        params = {'offset':  0,
+                  'pageSize': page_size}
 
-        url =  url_template.format(end_time=earliest_timestamp)
+        url =  url_template.format(end_time=end_time_str)
 
-        response = self.get(url,
-                            params=first_page_params)
+        response = self.get(url, params=params)
         data = response.json()
 
         yield data
 
         while len(data['packages']) == page_size:
+
             # the API results are sorted in descending order by timestamp
             # so we can paginate through results by making the end_time
             # filter earlier and earlier
             earliest_timestamp = data['packages'][-1]['lastModified']
             url = url_template.format(end_time=earliest_timestamp)
 
-            response = self.get(url,
-                                params=first_page_params)
+            response = self.get(url, params=params)
             data = response.json()
 
             yield data

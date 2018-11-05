@@ -19,5 +19,6 @@ setup(
         "Programming Language :: Python",
     ],
     install_requires=['scrapelib',
+                      'cachetools',
                       'pytz'],
 )
